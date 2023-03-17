@@ -123,7 +123,15 @@ init_upstream:
 			(cd upstream && git submodule update --init && git remote add source git@github.com:hashicorp/terraform-provider-aws.git) ; \
 		fi; \
 
-patch_upstream: init_upstream
+export_upstream_patches: init_upstream
+ifeq ($(shell cd upstream && git rev-parse --is-shallow-repository), false)
+	rm -f "upstream-patches/*"
+	cd upstream && \
+		LAST_TAG=$$(git describe --abbrev=0 --tags) && \
+		git format-patch  -o ../upstream-patches --minimal --no-signature HEAD...$${LAST_TAG}
+endif
+
+patch_upstream: init_upstream export_upstream_patches
 	@# Ensure tool is installed
 	cd upstream-tools && yarn install --frozen-lockfile
 	@# Reset all changes in the submodule so we're starting from a clean slate
@@ -132,10 +140,6 @@ patch_upstream: init_upstream
 	cd upstream-tools && yarn --silent run apply
 	@# Check for any pending replacements
 	cd upstream-tools && yarn --silent run check
-	rm upstream-patches/*
-	cd upstream && \
-		LAST_TAG=$$(git describe --abbrev=0 --tags) && \
-		git format-patch  -o ../upstream-patches --minimal --no-signature HEAD...$${LAST_TAG}
 
 update_upstream: init_upstream
 	@echo "\033[1;33mupdate_upstream is still under construction and will likely fail.\033[0m"
